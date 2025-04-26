@@ -1,0 +1,91 @@
+import discord
+from discord.ext import commands
+import json
+import os
+
+bot = commands.Bot(command_prefix='!', intents=discord.Intents.default())
+
+# Path to store redeemed keys and user data
+keys_file = 'keys.json'
+users_file = 'users.json'
+
+# Load keys and user data from JSON files
+def load_keys():
+    if os.path.exists(keys_file):
+        with open(keys_file, 'r') as f:
+            return json.load(f)
+    return []
+
+def load_users():
+    if os.path.exists(users_file):
+        with open(users_file, 'r') as f:
+            return json.load(f)
+    return {}
+
+def save_keys(keys):
+    with open(keys_file, 'w') as f:
+        json.dump(keys, f)
+
+def save_users(users):
+    with open(users_file, 'w') as f:
+        json.dump(users, f)
+
+# Define the role name to assign after redeem
+ROLE_NAME = "VIP"
+
+@bot.event
+async def on_ready():
+    print(f'Bot is online as {bot.user}')
+
+@bot.command()
+async def redeem(ctx, key: str):
+    keys = load_keys()
+    users = load_users()
+
+    # Check if the key is valid
+    if key in keys:
+        # Check if the user has already redeemed this key
+        if ctx.author.id in users and key in users[ctx.author.id]:
+            await ctx.send(f'{ctx.author.mention} You have already redeemed this key.')
+        else:
+            # Assign the key to the user and remove from available keys
+            if ctx.author.id not in users:
+                users[ctx.author.id] = []
+            users[ctx.author.id].append(key)
+            keys.remove(key)
+            save_keys(keys)
+            save_users(users)
+            
+            # Assign role to the user
+            role = discord.utils.get(ctx.guild.roles, name=ROLE_NAME)
+            if role:
+                await ctx.author.add_roles(role)
+            
+            await ctx.send(f'{ctx.author.mention} successfully redeemed the key **{key}** and received the **{ROLE_NAME}** role!')
+
+    else:
+        await ctx.send(f'{ctx.author.mention} Invalid or already used key.')
+
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def addkey(ctx, key: str):
+    keys = load_keys()
+    if key not in keys:
+        keys.append(key)
+        save_keys(keys)
+        await ctx.send(f'Key **{key}** has been added.')
+    else:
+        await ctx.send(f'Key **{key}** already exists.')
+
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def removekey(ctx, key: str):
+    keys = load_keys()
+    if key in keys:
+        keys.remove(key)
+        save_keys(keys)
+        await ctx.send(f'Key **{key}** has been removed.')
+    else:
+        await ctx.send(f'Key **{key}** not found.')
+
+bot.run("YOUR_BOT_TOKEN_HERE")
